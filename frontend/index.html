@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f7fb">
+  <title>Call Log Dashboard</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172536;
+      --muted: #68788a;
+      --line: #e3eaf2;
+      --paper: #fff;
+      --canvas: #f4f7fb;
+      --navy: #142b49;
+      --blue: #3978e8;
+      --blue-soft: #edf4ff;
+      --green: #16856f;
+      --red: #b42318;
+      --shadow: 0 10px 32px rgba(26, 51, 83, .06);
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--ink); font-size: 14px; line-height: 1.5; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .shell { max-width: 1240px; margin: 0 auto; padding: 30px 34px 52px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 34px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: var(--navy); color: #fff; font-weight: 800; }
+    .brand-name { color: var(--navy); font-weight: 750; letter-spacing: -.02em; }
+    .brand-caption { color: var(--muted); font-size: 12px; }
+    .connection { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); font-size: 12px; }
+    .connection-dot { width: 8px; height: 8px; border-radius: 50%; background: #98a6b5; }
+    .connection.connected { border-color: #cdebe1; background: #f1faf6; color: #17745f; }
+    .connection.connected .connection-dot { background: #1a9a78; }
+    .intro { margin-bottom: 23px; }
+    .eyebrow { margin: 0 0 7px; color: var(--blue); font-size: 11px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--navy); font-size: clamp(28px, 4vw, 38px); letter-spacing: -.045em; line-height: 1.15; }
+    .intro-copy { margin: 10px 0 0; color: var(--muted); }
+    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .summary-card, .panel { border: 1px solid var(--line); border-radius: 15px; background: var(--paper); box-shadow: var(--shadow); }
+    .summary-card { padding: 17px 19px; }
+    .summary-label { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .summary-value { display: block; margin-top: 4px; color: var(--navy); font-size: 27px; font-weight: 760; letter-spacing: -.04em; }
+    .panel { padding: 22px; }
+    .panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+    h2 { margin: 0; color: var(--navy); font-size: 17px; letter-spacing: -.02em; }
+    .subheading { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: start; gap: 18px; }
+    .upload-box { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; min-height: 155px; padding: 20px; border: 1px dashed #b7c8dc; border-radius: 13px; background: #f8fbff; }
+    .upload-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 11px; border-radius: 12px; background: var(--blue-soft); color: var(--blue); font-size: 21px; }
+    .upload-title { color: #20354f; font-weight: 700; }
+    .upload-hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .file-input { display: block; max-width: 100%; margin-top: 12px; color: var(--muted); font-size: 12px; }
+    .file-input::file-selector-button { margin-right: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #33475f; font-weight: 650; cursor: pointer; }
+    .primary, .secondary, .text-button { min-height: 38px; padding: 9px 13px; border-radius: 9px; font-weight: 650; }
+    .primary { border: 1px solid var(--blue); background: var(--blue); color: #fff; }
+    .primary:hover { background: #2868d6; }
+    .primary:disabled { opacity: .55; cursor: wait; }
+    .secondary { border: 1px solid var(--line); background: #fff; color: #34475d; }
+    .secondary:hover { background: #f8fafc; }
+    .text-button { min-height: 32px; padding: 6px 10px; border: 0; background: transparent; color: var(--blue); }
+    .text-button:hover { background: var(--blue-soft); }
+    .preview { display: none; max-width: 170px; max-height: 150px; border: 1px solid var(--line); border-radius: 10px; object-fit: contain; background: #fff; }
+    .preview.visible { display: block; }
+    .notice { margin: 13px 0 0; color: var(--muted); font-size: 11px; }
+    .progress { min-height: 20px; margin: 12px 0 0; color: var(--blue); font-size: 12px; }
+    .progress.error { color: var(--red); }
+    .side-card { padding: 19px; border: 1px solid #dfe9f8; border-radius: 13px; background: linear-gradient(150deg, #f5f8ff, #fff); }
+    .side-card h3 { margin: 0; color: var(--navy); font-size: 14px; }
+    .steps { display: grid; gap: 15px; margin: 18px 0 0; padding: 0; list-style: none; }
+    .step { display: grid; grid-template-columns: 25px minmax(0, 1fr); gap: 10px; color: #536479; font-size: 12px; }
+    .step-number { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #e7efff; color: var(--blue); font-size: 11px; font-weight: 750; }
+    .step strong { display: block; margin-bottom: 2px; color: #253b55; font-size: 12px; }
+    .calls-panel, .saved-panel { margin-top: 18px; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 11px 12px; background: #f7f9fc; color: #58697e; font-size: 11px; font-weight: 700; text-align: left; white-space: nowrap; }
+    td { padding: 9px 12px; border-top: 1px solid #edf1f5; }
+    .edit-table input { width: 100%; min-width: 100px; min-height: 36px; padding: 7px 9px; border: 1px solid #dfe6ee; border-radius: 7px; color: #25364a; background: #fff; }
+    .edit-table input:focus { border-color: #7ba6f2; outline: 3px solid #e8f0ff; }
+    .edit-table .date-input { min-width: 135px; }
+    .edit-table .number-input { min-width: 90px; }
+    .delete-row { border: 0; background: transparent; color: #8c5c5c; font-size: 12px; }
+    .delete-row:hover { color: var(--red); }
+    .table-empty { padding: 24px 12px; color: var(--muted); text-align: center; font-size: 12px; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 13px; }
+    .action-left { display: flex; flex-wrap: wrap; gap: 8px; }
+    .save-note { color: var(--muted); font-size: 11px; }
+    .status-message { min-height: 20px; margin: 12px 0 0; color: var(--green); font-size: 12px; }
+    .status-message.error { color: var(--red); }
+    .saved-table td { color: #34465c; font-size: 12px; }
+    .saved-empty { padding: 24px 12px; color: var(--muted); text-align: center; font-size: 12px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    footer { margin-top: 20px; color: #8491a0; font-size: 11px; text-align: center; }
+    @media (max-width: 850px) {
+      .shell { padding: 24px 20px 40px; }
+      .layout { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .shell { padding: 18px 13px 30px; }
+      .topbar { align-items: flex-start; }
+      .connection { max-width: 175px; font-size: 10px; }
+      .summary { gap: 8px; }
+      .summary-card { padding: 13px 12px; }
+      .summary-label { font-size: 10px; }
+      .summary-value { font-size: 22px; }
+      .panel { padding: 16px 13px; }
+      .upload-box { grid-template-columns: 1fr; }
+      .preview { max-width: 100%; max-height: 200px; }
+      .steps { grid-template-columns: 1fr; }
+      .panel-heading { align-items: center; }
+      .actions { align-items: stretch; flex-direction: column; }
+      .actions .primary { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">CL</div>
+        <div><div class="brand-name">Call Log Dashboard</div><div class="brand-caption">Screenshot to spreadsheet</div></div>
+      </div>
+      <div class="connection" id="connection"><span class="connection-dot" aria-hidden="true"></span><span id="connection-label">Checking sheet connection</span></div>
+    </header>
+
+    <section class="intro">
+      <p class="eyebrow">Call activity</p>
+      <h1>Turn call screenshots into clean data.</h1>
+      <p class="intro-copy">Upload a call-log screenshot, review the extracted details, and write each call to your connected Google Sheet.</p>
+    </section>
+
+    <section class="summary" aria-label="Call log summary">
+      <article class="summary-card"><span class="summary-label">Calls logged</span><strong class="summary-value" id="summary-count">0</strong></article>
+      <article class="summary-card"><span class="summary-label">Total call minutes</span><strong class="summary-value" id="summary-minutes">0</strong></article>
+      <article class="summary-card"><span class="summary-label">People identified</span><strong class="summary-value" id="summary-people">0</strong></article>
+    </section>
+
+    <section class="panel" aria-labelledby="upload-heading">
+      <div class="panel-heading">
+        <div><p class="eyebrow">Upload &amp; review</p><h2 id="upload-heading">Read a call-log screenshot</h2><p class="subheading">Text is recognized in your browser and automatically saved to the connected sheet.</p></div>
+      </div>
+      <div class="layout">
+        <div>
+          <div class="upload-box">
+            <div>
+              <div class="upload-icon" aria-hidden="true">⇧</div>
+              <div class="upload-title">Choose a screenshot to get started</div>
+              <div class="upload-hint">Use a clear PNG, JPG, or WEBP image of your call history. Maximum file size: 20 MB.</div>
+              <input class="file-input" id="screenshot" type="file" accept="image/*" aria-label="Upload call-log screenshot, up to 20 MB">
+            </div>
+            <img class="preview" id="preview" alt="Preview of the selected call log screenshot">
+          </div>
+          <p class="notice">Images are read in your browser and are not stored as blobs in Google Sheets. Only the extracted call details are saved. OCR may misread names, phone numbers, or durations; review and correct the rows.</p>
+          <p class="progress" id="progress" role="status" aria-live="polite"></p>
+        </div>
+        <aside class="side-card">
+          <h3>How it works</h3>
+          <ol class="steps">
+            <li class="step"><span class="step-number">1</span><span><strong>Upload screenshot</strong>Select one call log image.</span></li>
+            <li class="step"><span class="step-number">2</span><span><strong>Review details</strong>Correct the date, time, phone, name, duration, start, or end time.</span></li>
+            <li class="step"><span class="step-number">3</span><span><strong>Saved automatically</strong>Each call is written as its own sheet row after reading.</span></li>
+          </ol>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel calls-panel" aria-labelledby="calls-heading">
+      <div class="panel-heading">
+        <div><h2 id="calls-heading">Recognized calls</h2><p class="subheading">Date, ISO week, month, time, phone, name, duration, start time, and end time are saved as one row per call.</p></div>
+        <button class="secondary" id="add-row" type="button">＋ Add call</button>
+      </div>
+      <div class="table-wrap">
+        <table class="edit-table">
+          <thead><tr><th>Date</th><th>Week (ISO)</th><th>Month</th><th>Time</th><th>Phone number</th><th>Name</th><th>Duration (minutes)</th><th>Start time (call start)</th><th>End time (call end)</th><th><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody id="edit-rows"></tbody>
+        </table>
+        <div class="table-empty" id="edit-empty">Upload a screenshot or select “Add call” to start a call list.</div>
+      </div>
+      <div class="actions">
+        <div class="action-left"><button class="primary" id="read-button" type="button">Read screenshot</button><button class="secondary" id="clear-button" type="button">Clear calls</button></div>
+        <span class="save-note">New screenshot results save automatically; use this button for edits and manually added calls.</span>
+        <button class="primary" id="save-button" type="button" disabled>Save changes to sheet</button>
+      </div>
+      <p class="status-message" id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel saved-panel" aria-labelledby="saved-heading">
+      <div class="panel-heading">
+        <div><h2 id="saved-heading">Recently saved calls</h2><p class="subheading">Live data from the connected Work Log sheet.</p></div>
+        <button class="secondary" id="refresh-button" type="button">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table class="saved-table">
+          <thead><tr><th>Date</th><th>Week (ISO)</th><th>Month</th><th>Time</th><th>Phone number</th><th>Name</th><th>Duration (minutes)</th><th>Start time</th><th>End time</th></tr></thead>
+          <tbody id="saved-rows"></tbody>
+        </table>
+        <div class="saved-empty" id="saved-empty">No saved calls yet.</div>
+      </div>
+    </section>
+    <footer>Email review is intentionally left blank. Call rows are saved with date, ISO week, month, time, phone number, name, duration, start time, and end time.</footer>
+  </main>
+
+  <script>
+    (() => {
+      const dateInput = document.getElementById("screenshot");
+      const preview = document.getElementById("preview");
+      const editRows = document.getElementById("edit-rows");
+      const editEmpty = document.getElementById("edit-empty");
+      const savedRows = document.getElementById("saved-rows");
+      const savedEmpty = document.getElementById("saved-empty");
+      const progress = document.getElementById("progress");
+      const status = document.getElementById("status");
+      const saveButton = document.getElementById("save-button");
+      const connection = document.getElementById("connection");
+      const connectionLabel = document.getElementById("connection-label");
+      const localDate = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      };
+      const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+      const MAX_OCR_PIXELS = 4_000_000;
+      const getIsoWeek = value => {
+        const [year, month, day] = (value || "").split("-").map(Number);
+        if (!year || !month || !day) return "";
+        const date = new Date(Date.UTC(year, month - 1, day));
+        date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+        const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+        const week = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+        return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+      };
+      const getMonth = value => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.slice(0, 7) : "";
+      let tesseractPromise;
+      let previewUrl = "";
+      let lastSavedScreenshot = "";
+      let sheetConnected = false;
+
+      const setStatus = (message, isError = false) => {
+        status.textContent = message;
+        status.classList.toggle("error", isError);
+      };
+      const addCallRow = (call = {}) => {
+        const row = document.createElement("tr");
+        const makeInput = (type, className, value, label, attributes = {}) => {
+          const input = document.createElement("input");
+          input.type = type;
+          input.className = className;
+          input.value = value == null ? "" : value;
+          input.setAttribute("aria-label", label);
+          Object.entries(attributes).forEach(([key, attributeValue]) => input.setAttribute(key, attributeValue));
+          return input;
+        };
+        const dateCell = row.insertCell();
+        const dateInput = makeInput("date", "date-input", call.date || localDate(), "Date", { required: "required" });
+        dateCell.append(dateInput);
+        const weekCell = row.insertCell();
+        const weekValue = document.createElement("span");
+        weekValue.textContent = getIsoWeek(call.date || localDate());
+        weekCell.append(weekValue);
+        const monthCell = row.insertCell();
+        const monthValue = document.createElement("span");
+        monthValue.textContent = getMonth(call.date || localDate());
+        monthCell.append(monthValue);
+        dateInput.addEventListener("input", () => {
+          weekValue.textContent = getIsoWeek(dateInput.value);
+          monthValue.textContent = getMonth(dateInput.value);
+        });
+        const timeCell = row.insertCell();
+        timeCell.append(makeInput("time", "number-input", call.callTime || "", "Time", { step: "1" }));
+        const contactCell = row.insertCell();
+        contactCell.append(makeInput("text", "", call.contact || "", "Phone number", { maxlength: "80", inputmode: "tel", placeholder: "Phone number" }));
+        const nameCell = row.insertCell();
+        nameCell.append(makeInput("text", "", call.personName || "", "Person name", { maxlength: "200", placeholder: "Person name" }));
+        const durationCell = row.insertCell();
+        durationCell.append(makeInput("number", "number-input", call.callMinutes == null ? "" : call.callMinutes, "Duration in minutes", { min: "0", max: "100000", step: "0.01", placeholder: "0.00" }));
+        const startCell = row.insertCell();
+        startCell.append(makeInput("time", "number-input", call.startTime || call.callTime || "", "Start time (call start)", { step: "1" }));
+        const endCell = row.insertCell();
+        endCell.append(makeInput("time", "number-input", call.endTime || "", "End time (call end)", { step: "1" }));
+        const actionCell = row.insertCell();
+        if (call.rowIndex) row.dataset.rowIndex = String(call.rowIndex);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "delete-row";
+        remove.textContent = "Remove";
+        remove.setAttribute("aria-label", "Remove call");
+        remove.addEventListener("click", () => { row.remove(); updateEditState(); });
+        actionCell.append(remove);
+        editRows.append(row);
+        updateEditState();
+      };
+      const updateEditState = () => {
+        const count = editRows.rows.length;
+        editEmpty.hidden = count > 0;
+        saveButton.disabled = !sheetConnected || count === 0;
+        const hasPendingRows = [...editRows.rows].some(row => !row.dataset.rowIndex);
+        saveButton.textContent = hasPendingRows ? "Save changes and new calls" : "Save changes to sheet";
+      };
+      const loadTesseract = () => {
+        if (window.Tesseract) return Promise.resolve(window.Tesseract);
+        if (!tesseractPromise) {
+          tesseractPromise = new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+            script.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("OCR engine did not load."));
+            script.onerror = () => reject(new Error("Could not load OCR. Check your internet connection and try again."));
+            document.head.append(script);
+          });
+        }
+        return tesseractPromise;
+      };
+      const prepareOcrImage = async file => {
+        let bitmap;
+        try {
+          bitmap = await createImageBitmap(file);
+        } catch {
+          throw new Error("This image could not be opened. Choose a PNG or JPG screenshot under 20 MB.");
+        }
+        try {
+          const sourcePixels = bitmap.width * bitmap.height;
+          const scale = Math.min(1, Math.sqrt(MAX_OCR_PIXELS / sourcePixels));
+          const width = Math.max(1, Math.round(bitmap.width * scale));
+          const height = Math.max(1, Math.round(bitmap.height * scale));
+          if (scale === 1) return file;
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("Your browser could not prepare the screenshot for OCR.");
+          context.drawImage(bitmap, 0, 0, width, height);
+          return await new Promise((resolve, reject) => {
+            canvas.toBlob(blob => {
+              if (blob) resolve(blob);
+              else reject(new Error("Your browser could not resize the screenshot for OCR."));
+            }, "image/jpeg", 0.92);
+          });
+        } finally {
+          bitmap.close();
+        }
+      };
+      const parseDate = (line, fallback) => {
+        const iso = line.match(/\b(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})\b/);
+        if (iso) return validDate(+iso[1], +iso[2], +iso[3]) || fallback;
+        const numeric = line.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/);
+        if (numeric) {
+          const year = +numeric[3] < 100 ? 2000 + +numeric[3] : +numeric[3];
+          return validDate(year, +numeric[2], +numeric[1]) || validDate(year, +numeric[1], +numeric[2]) || fallback;
+        }
+        const named = line.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:,?\s+(20\d{2}))?\b/i);
+        if (named) {
+          const month = new Date(`${named[1]} 1, 2000`).getMonth() + 1;
+          return validDate(named[3] ? +named[3] : +fallback.slice(0, 4), month, +named[2]) || fallback;
+        }
+        return /\btoday\b/i.test(line) ? fallback : fallback;
+      };
+      const validDate = (year, month, day) => {
+        const date = new Date(Date.UTC(year, month - 1, day));
+        if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return "";
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      };
+      const getPhone = text => {
+        const cleaned = text
+          .replace(/\b20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b/g, " ")
+          .replace(/\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b/g, " ")
+          .replace(/\b\d+(?:[.,]\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b/gi, " ")
+          .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\b/gi, " ");
+        const candidates = cleaned.split(/\r?\n/).flatMap(line => line.match(/(?:\+\s*)?\(?\d[\d\s().-]{6,}\d/g) || []);
+        const value = candidates.find(candidate => candidate.replace(/\D/g, "").length >= 8);
+        return value ? value.replace(/\s+/g, " ").trim() : "";
+      };
+      const getName = text => text
+        .replace(getPhone(text), " ")
+        .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\b/gi, " ")
+        .replace(/\b\d+(?:[.,]\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b/gi, " ")
+        .replace(/\b(?:missed|incoming|received|inbound|outgoing|dialled|dialed|placed|outbound|call|today|yesterday|start|end|duration|time|date|total)\b/gi, " ")
+        .replace(/\b(?:20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b/g, " ")
+        .replace(/[|•·,:;()[\]{}]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 200);
+      const extractClockTimes = text => [...text.matchAll(/\b(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\s*(AM|PM)?\b/gi)]
+        .map(match => {
+          let hours = Number(match[1]);
+          const minutes = Number(match[2]);
+          const seconds = match[3] === undefined ? 0 : Number(match[3]);
+          const suffix = (match[4] || "").toUpperCase();
+          if (suffix) {
+            if (hours < 1 || hours > 12) return null;
+            if (suffix === "PM" && hours < 12) hours += 12;
+            if (suffix === "AM" && hours === 12) hours = 0;
+          } else if (hours > 23) {
+            return null;
+          }
+          return {
+            seconds,
+            value: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${match[3] === undefined ? "" : `:${String(seconds).padStart(2, "0")}`}`,
+            raw: match[0],
+            index: match.index
+          };
+        })
+        .filter(Boolean);
+      const durationSeconds = (text, callTime = "") => {
+        const labelled = text.match(/\b(?:duration|call time|length)\s*[:=-]?\s*(\d{1,3}):(\d{2})(?::(\d{2}))?\b/i);
+        if (labelled) return labelled[3] ? +labelled[1] * 3600 + +labelled[2] * 60 + +labelled[3] : +labelled[1] * 60 + +labelled[2];
+        const stripped = text
+          .replace(/\b(?:start|end)\s*(?:time)?\s*[:=-]?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\b/gi, " ")
+          .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)\b/gi, " ");
+        const clockToRemove = extractClockTimes(stripped).find(clock => clock.value === callTime);
+        const durationText = clockToRemove
+          ? stripped.replace(clockToRemove.raw, " ")
+          : stripped;
+        const units = [...durationText.matchAll(/(\d+(?:[.,]\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b/gi)];
+        if (units.length) return Math.round(units.reduce((total, match) => {
+          const value = Number(match[1].replace(",", "."));
+          const unit = match[2].toLowerCase();
+          return total + value * (/^(h|hr|hrs|hour|hours)$/.test(unit) ? 3600 : /^(m|min|mins|minute|minutes)$/.test(unit) ? 60 : 1);
+        }, 0));
+        const clock = durationText.match(/\b(\d{1,2}):(\d{2}):(\d{2})\b/);
+        if (clock) return +clock[1] * 3600 + +clock[2] * 60 + +clock[3];
+        const mmss = durationText.match(/\b(\d{1,3}):([0-5]\d)\b/);
+        if (!mmss || (!callTime && extractClockTimes(durationText).some(time => time.raw === mmss[0]))) return null;
+        return mmss ? +mmss[1] * 60 + +mmss[2] : null;
+      };
+      const addSecondsToTime = (time, seconds) => {
+        if (!time || seconds === null || seconds === undefined) return "";
+        const [hours, minutes, originalSeconds = 0] = time.split(":").map(Number);
+        const total = (hours * 3600 + minutes * 60 + originalSeconds + seconds) % 86400;
+        const formatted = `${String(Math.floor(total / 3600)).padStart(2, "0")}:${String(Math.floor(total % 3600 / 60)).padStart(2, "0")}`;
+        const remainder = total % 60;
+        return remainder ? `${formatted}:${String(remainder).padStart(2, "0")}` : formatted;
+      };
+      const parseCalls = (text, fallbackDate) => {
+        const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+        const dates = lines.map(line => parseDate(line, fallbackDate));
+        const detectedDate = dates.find(date => date !== fallbackDate) || fallbackDate;
+        const callLogsHeading = lines.findIndex(line => /\bcall\s+(?:logs?|history)\b/i.test(line));
+        if (callLogsHeading >= 0) {
+          const anchors = [];
+          for (let index = callLogsHeading + 1; index < lines.length; index++) {
+            if (/\b(?:today|yesterday)?\s*\d{1,2}:\d{2}\s*(?:AM|PM)\b/i.test(lines[index])) {
+              anchors.push(index);
+            }
+          }
+          if (anchors.length) {
+            const headerPhone = lines.slice(0, callLogsHeading).map(getPhone).find(Boolean) ||
+              lines.slice(callLogsHeading + 1).map(getPhone).find(Boolean) || "";
+            return anchors.map((lineIndex, anchorIndex) => {
+              const endIndex = anchors[anchorIndex + 1] ?? lines.length;
+              const context = lines.slice(lineIndex, endIndex).join(" ");
+              const callTime = extractClockTimes(lines[lineIndex])[0]?.value || "";
+              const callDate = /\byesterday\b/i.test(lines[lineIndex])
+                ? (() => {
+                    const date = new Date(`${fallbackDate}T00:00:00Z`);
+                    date.setUTCDate(date.getUTCDate() - 1);
+                    return date.toISOString().slice(0, 10);
+                  })()
+                : parseDate(lines[lineIndex], fallbackDate);
+              const duration = durationSeconds(context, callTime);
+              const didNotConnect = /\b(?:did not connect|not connected|missed|no answer|unanswered|cancelled|canceled)\b/i.test(context);
+              const seconds = duration === null && didNotConnect ? 0 : duration;
+              const startTime = callTime;
+              const endTime = seconds === null ? "" : addSecondsToTime(startTime, seconds);
+              return {
+                date: callDate,
+                callTime,
+                contact: headerPhone,
+                personName: "",
+                callMinutes: seconds === null ? "" : Math.round(seconds / 60 * 100) / 100,
+                startTime,
+                endTime
+              };
+            });
+          }
+        }
+        const result = [];
+        lines.forEach((line, index) => {
+          if (/^\s*(?:total|summary|calls?[: ]+\d+)/i.test(line)) return;
+          const phone = getPhone(line);
+          const nearPhone = [-3, -2, -1, 1, 2, 3].some(offset => lines[index + offset] && getPhone(lines[index + offset]));
+          const contextLines = [];
+          const offsets = phone ? [-1, 0, 1, 2, 3] : [-2, -1, 0, 1, 2];
+          for (const offset of offsets) {
+            const candidateLine = lines[index + offset];
+            if (!candidateLine) continue;
+            if (offset !== 0 && getPhone(candidateLine)) continue;
+            contextLines.push(candidateLine);
+          }
+          const context = contextLines.join("\n");
+          const startLabel = context.match(/\bstart(?: time)?\s*[:=-]?\s*(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)/i);
+          const endLabel = context.match(/\bend(?: time)?\s*[:=-]?\s*(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?)/i);
+          const durationLabel = context.match(/\b(?:duration|call time|length)\s*[:=-]?\s*\d{1,3}:\d{2}(?::\d{2})?\b/i);
+          const parsedStart = startLabel ? extractClockTimes(startLabel[1])[0]?.value : "";
+          const parsedEnd = endLabel ? extractClockTimes(endLabel[1])[0]?.value : "";
+          const timeSource = context.replace(/\b(?:duration|call time|length)\s*[:=-]?\s*\d{1,3}:\d{2}(?::\d{2})?\b/i, " ");
+          const clocks = extractClockTimes(timeSource);
+          const typeLine = /\b(?:missed|incoming|received|inbound|outgoing|dialled|dialed|placed|outbound)\b/i.test(context);
+          const amPmTime = clocks.find(clock => /\b(?:AM|PM)\b/i.test(clock.raw));
+          const clear24HourTime = clocks.find(clock => Number(clock.value.slice(0, 2)) > 12);
+          const callTime = parsedStart || amPmTime?.value || clear24HourTime?.value ||
+            ((phone || typeLine) ? clocks[0]?.value || "" : "");
+          const clockPairsAreEndpoints = clocks.length > 1 &&
+            (clocks.every(clock => /\b(?:AM|PM)\b/i.test(clock.raw)) ||
+              Boolean(startLabel && endLabel) ||
+              clocks.every(clock => Number(clock.value.slice(0, 2)) > 12));
+          let seconds = clockPairsAreEndpoints ? null : durationSeconds(context, callTime);
+          const hasTimeOrDuration = Boolean(callTime || parsedStart || parsedEnd || seconds !== null || durationLabel);
+          if (!phone && (nearPhone || !typeLine && !hasTimeOrDuration)) return;
+          if (!phone && !typeLine && !hasTimeOrDuration) return;
+          const contact = phone || getPhone(context);
+          const personName = getName(context);
+          if (!contact && !personName && seconds === null && !callTime && !parsedStart && !parsedEnd) return;
+          const contextDate = contextLines.map(contextLine => parseDate(contextLine, fallbackDate))
+            .find(date => date !== fallbackDate);
+          const callDate = dates[index] && dates[index] !== fallbackDate ? dates[index] : contextDate || detectedDate;
+          const startTime = parsedStart || callTime;
+          const secondClock = clockPairsAreEndpoints ? clocks.find(clock => clock.value !== callTime)?.value : "";
+          const endTime = parsedEnd || (seconds === null ? secondClock : "") || addSecondsToTime(startTime, seconds);
+          if (seconds === null && startTime && endTime) {
+            const [startHours, startMinutes, startSeconds = 0] = startTime.split(":").map(Number);
+            const [endHours, endMinutes, endSeconds = 0] = endTime.split(":").map(Number);
+            const startTotal = startHours * 3600 + startMinutes * 60 + startSeconds;
+            const endTotal = endHours * 3600 + endMinutes * 60 + endSeconds;
+            seconds = (endTotal - startTotal + 86400) % 86400;
+          }
+          result.push({
+            date: callDate,
+            callTime: callTime || startTime,
+            contact,
+            callMinutes: seconds === null ? "" : Math.round(seconds / 60 * 100) / 100,
+            personName,
+            startTime,
+            endTime
+          });
+        });
+        const unique = [];
+        const seen = new Set();
+        result.forEach(call => {
+          const key = [call.date, call.callTime, call.contact, call.callMinutes, call.personName, call.startTime, call.endTime].join("|");
+          if (!seen.has(key)) { seen.add(key); unique.push(call); }
+        });
+        return unique;
+      };
+      const readScreenshot = async () => {
+        const file = dateInput.files[0];
+        if (!file) { progress.textContent = "Choose a call-log screenshot first."; progress.classList.add("error"); return; }
+        if (!file.type.startsWith("image/")) { progress.textContent = "Choose an image file such as PNG, JPG, or WEBP."; progress.classList.add("error"); return; }
+        if (file.size > MAX_UPLOAD_BYTES) {
+          progress.textContent = "This screenshot is larger than 20 MB. Choose a smaller image.";
+          progress.classList.add("error");
+          return;
+        }
+        const fingerprint = `${file.name}|${file.size}|${file.lastModified}`;
+        if (fingerprint === lastSavedScreenshot) {
+          progress.textContent = "This screenshot has already been saved in this session. Choose a different image to avoid duplicate calls.";
+          return;
+        }
+        const button = document.getElementById("read-button");
+        button.disabled = true;
+        progress.classList.remove("error");
+        progress.textContent = "Starting browser OCR…";
+        try {
+          const tesseract = await loadTesseract();
+          progress.textContent = "Preparing screenshot for browser OCR…";
+          const ocrImage = await prepareOcrImage(file);
+          const recognized = await tesseract.recognize(ocrImage, "eng", {
+            logger: message => {
+              if (message.status === "recognizing text") progress.textContent = `Reading screenshot… ${Math.round((message.progress || 0) * 100)}%`;
+            }
+          });
+          const calls = parseCalls(recognized.data.text || "", localDate());
+          if (!calls.length) throw new Error("No call entries were recognized. Try a clearer screenshot or add calls manually.");
+          editRows.replaceChildren();
+          calls.forEach(call => addCallRow(call));
+          if (sheetConnected) {
+            progress.textContent = `Found ${calls.length} possible call${calls.length === 1 ? "" : "s"}. Saving automatically…`;
+            try {
+              const saved = await callServer("saveCallLogs", calls);
+              editRows.replaceChildren();
+              saved.forEach(addCallRow);
+              lastSavedScreenshot = fingerprint;
+              progress.textContent = `Read and automatically saved ${saved.length} call${saved.length === 1 ? "" : "s"}. Review the rows and save changes if needed.`;
+              setStatus("Screenshot call details were saved to the connected Google Sheet.");
+              try {
+                await refreshSaved();
+              } catch (error) {
+                setStatus(`Calls were saved, but the dashboard could not refresh: ${error.message}`, true);
+              }
+            } catch (error) {
+              progress.textContent = `OCR found ${calls.length} calls, but automatic saving failed. Check the rows and select Save changes to sheet to retry.`;
+              progress.classList.add("error");
+              setStatus(`Could not automatically save calls: ${error.message}`, true);
+            }
+          } else {
+            progress.textContent = `Found ${calls.length} possible calls. Check the Google Sheets connection, then save the rows to retry.`;
+            setStatus("This page could not connect to Google Sheets. Check the deployment configuration.", true);
+          }
+        } catch (error) {
+          progress.textContent = error.message || String(error);
+          progress.classList.add("error");
+        } finally {
+          button.disabled = false;
+          updateEditState();
+        }
+      };
+      const callServer = async (method, ...args) => {
+        const response = await fetch("/api/sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ method, args })
+        });
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          throw new Error("The Sheets service returned an invalid response.");
+        }
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || `The Sheets service returned HTTP ${response.status}.`);
+        }
+        return result.data;
+      };
+      const renderSaved = records => {
+        savedRows.replaceChildren();
+        const minutes = records.reduce((sum, item) => sum + (Number(item.callMinutes) || 0), 0);
+        const people = new Set(records.map(item => item.personName.trim()).filter(Boolean));
+        document.getElementById("summary-count").textContent = records.length.toLocaleString();
+        document.getElementById("summary-minutes").textContent = (Math.round(minutes * 100) / 100).toLocaleString();
+        document.getElementById("summary-people").textContent = people.size.toLocaleString();
+        savedEmpty.hidden = records.length > 0;
+        records.slice(0, 50).forEach(item => {
+          const row = savedRows.insertRow();
+          [
+            item.date,
+            item.week || getIsoWeek(item.date),
+            item.month || getMonth(item.date),
+            item.callTime || "—",
+            item.contact || "—",
+            item.personName || "—",
+            Number(item.callMinutes || 0).toLocaleString(),
+            item.startTime || "—",
+            item.endTime || "—"
+          ].forEach(value => {
+            row.insertCell().textContent = value;
+          });
+        });
+      };
+      const refreshSaved = async () => {
+        try {
+          renderSaved(await callServer("getWorkLogs"));
+          sheetConnected = true;
+          connection.classList.add("connected");
+          connectionLabel.textContent = "Google Sheet connected";
+        } catch (error) {
+          sheetConnected = false;
+          connection.classList.remove("connected");
+          connectionLabel.textContent = "Google Sheet not connected";
+          updateEditState();
+          throw error;
+        }
+        updateEditState();
+      };
+      const saveCalls = async () => {
+        const entries = [...editRows.rows].map(row => {
+          const inputs = row.querySelectorAll("input");
+          const entry = {
+            date: inputs[0].value,
+            callTime: inputs[1].value,
+            contact: inputs[2].value.trim(),
+            personName: inputs[3].value.trim(),
+            callMinutes: inputs[4].value || "0",
+            startTime: inputs[5].value,
+            endTime: inputs[6].value
+          };
+          if (row.dataset.rowIndex) entry.rowIndex = Number(row.dataset.rowIndex);
+          return entry;
+        });
+        for (const [index, entry] of entries.entries()) {
+          if (!entry.date) { setStatus(`Enter a date for call ${index + 1}.`, true); return; }
+          if (!entry.contact && !entry.personName) { setStatus(`Add a contact number or person name for call ${index + 1}.`, true); return; }
+          if (!Number.isFinite(Number(entry.callMinutes)) || Number(entry.callMinutes) < 0) {
+            setStatus(`Enter valid call minutes for call ${index + 1}.`, true); return;
+          }
+        }
+        saveButton.disabled = true;
+        setStatus("Saving calls to Google Sheets…");
+        try {
+          const saved = await callServer("saveCallLogs", entries);
+          editRows.replaceChildren();
+          saved.forEach(addCallRow);
+          setStatus(`Saved changes to ${saved.length} call${saved.length === 1 ? "" : "s"} in the Work Log sheet.`);
+          try {
+            await refreshSaved();
+          } catch (error) {
+            setStatus(`Saved changes, but could not refresh the dashboard: ${error.message}`, true);
+          }
+        } catch (error) {
+          setStatus(`Could not save calls: ${error.message}`, true);
+        } finally {
+          updateEditState();
+        }
+      };
+
+      dateInput.addEventListener("change", () => {
+        const file = dateInput.files[0];
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = file ? URL.createObjectURL(file) : "";
+        preview.src = previewUrl;
+        preview.classList.toggle("visible", Boolean(file));
+        progress.textContent = "";
+        progress.classList.remove("error");
+      });
+      document.getElementById("read-button").addEventListener("click", readScreenshot);
+      document.getElementById("add-row").addEventListener("click", () => addCallRow());
+      document.getElementById("clear-button").addEventListener("click", () => {
+        editRows.replaceChildren();
+        updateEditState();
+        setStatus("");
+      });
+      document.getElementById("save-button").addEventListener("click", saveCalls);
+      document.getElementById("refresh-button").addEventListener("click", async () => {
+        try {
+          await refreshSaved();
+          setStatus("Dashboard refreshed from the connected sheet.");
+        } catch (error) {
+          setStatus(`Could not refresh the dashboard: ${error.message}`, true);
+        }
+      });
+
+      connectionLabel.textContent = "Connecting to Google Sheet…";
+      refreshSaved().catch(error => {
+        connection.classList.remove("connected");
+        connectionLabel.textContent = "Google Sheet not connected";
+        setStatus(`Could not load the connected sheet: ${error.message}`, true);
+      });
+      updateEditState();
+    })();
+  </script>
+</body>
+</html>
