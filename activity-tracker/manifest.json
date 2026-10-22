@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Work Justification Activity Timer",
+  "version": "1.0.0",
+  "description": "Counts active time in selected work apps and syncs daily totals to the Work Justification Activity Log.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAn+D0ged7nSbedZRlH1+Smj9ptmiEtWNbAoajeuoIAqRckGhdXNSktduNpYn5OI6o1t58ihh0XZGogGHjVJ9n9QMory6+S9+whjYMlOyfcjgsqihW8vLm8IporsjKH9qty3QGXfS2J69qjEpJF7p6scB3HWqZ+zq2oIOO2k4P/VTtgN7HagI4YFHU1ucNzPQAIVvDTGPaOybKpyzrwWQHbJPBS1eW9h8qFm+C/hK3UG5Gyn0Foj/CQEf/PDA92vvB9kNgPwQi7fenbycdp+b5+Kk1oxV2x+vZeUDkh47qyC+QuJSO02FM445dJQQ6uV2x72LTk29p5eSVYUTgsPnZjwIDAQAB",
+  "permissions": ["alarms", "idle", "storage", "tabs"],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://docs.google.com/spreadsheets/*",
+    "https://training-hub-rust.vercel.app/tl*",
+    "https://zoho.com/*",
+    "https://*.zoho.com/*",
+    "https://zoho.in/*",
+    "https://*.zoho.in/*",
+    "https://zoho.eu/*",
+    "https://*.zoho.eu/*",
+    "https://web.whatsapp.com/*",
+    "https://work-justification.vercel.app/*"
+  ],
+  "background": { "service_worker": "service-worker.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Work activity" }
+}
+
