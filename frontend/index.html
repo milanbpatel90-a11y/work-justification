@@ -96,6 +96,9 @@
     .status-message.error { color: var(--red); }
     .saved-table td { color: #34465c; font-size: 12px; }
     .saved-empty { padding: 24px 12px; color: var(--muted); text-align: center; font-size: 12px; }
+    .report-table td, .report-table tfoot { color: #34465c; font-size: 12px; }
+    .report-table tfoot { background: #f7f9fc; font-weight: 750; }
+    .report-empty { padding: 24px 12px; color: var(--muted); text-align: center; font-size: 12px; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     footer { margin-top: 20px; color: #8491a0; font-size: 11px; text-align: center; }
     @media (max-width: 850px) {
@@ -205,6 +208,20 @@
         <div class="saved-empty" id="saved-empty">No saved calls yet.</div>
       </div>
     </section>
+    <section class="panel saved-panel" aria-labelledby="report-heading">
+      <div class="panel-heading">
+        <div><h2 id="report-heading">Day-wise call report</h2><p class="subheading">Calls and total call minutes grouped by date from the connected Work Log sheet.</p></div>
+        <button class="primary" id="download-report-button" type="button" disabled>Download Excel report</button>
+      </div>
+      <div class="table-wrap">
+        <table class="report-table">
+          <thead><tr><th scope="col">Date</th><th scope="col">Calls</th><th scope="col">Total minutes</th></tr></thead>
+          <tbody id="daily-report-rows"></tbody>
+          <tfoot><tr id="daily-report-total" hidden><th scope="row">Total</th><td id="daily-report-call-total">0</td><td id="daily-report-minute-total">0</td></tr></tfoot>
+        </table>
+        <div class="report-empty" id="daily-report-empty">No saved call data to report yet.</div>
+      </div>
+    </section>
     <footer>Email review is intentionally left blank. Call rows are saved with date, ISO week, month, time, phone number, name, duration, start time, and end time.</footer>
   </main>
 
@@ -217,6 +234,12 @@
       const editEmpty = document.getElementById("edit-empty");
       const savedRows = document.getElementById("saved-rows");
       const savedEmpty = document.getElementById("saved-empty");
+      const dailyReportRows = document.getElementById("daily-report-rows");
+      const dailyReportEmpty = document.getElementById("daily-report-empty");
+      const dailyReportTotal = document.getElementById("daily-report-total");
+      const dailyReportCallTotal = document.getElementById("daily-report-call-total");
+      const dailyReportMinuteTotal = document.getElementById("daily-report-minute-total");
+      const downloadReportButton = document.getElementById("download-report-button");
       const progress = document.getElementById("progress");
       const status = document.getElementById("status");
       const saveButton = document.getElementById("save-button");
@@ -243,6 +266,8 @@
       let lastSavedScreenshot = "";
       let pendingScreenshotFingerprint = "";
       let sheetConnected = false;
+      let dailyReport = [];
+      let xlsxPromise;
 
       const setStatus = (message, isError = false) => {
         status.textContent = message;
@@ -664,6 +689,34 @@
         }
         return result.data;
       };
+      const roundMinutes = value => Math.round(value * 100) / 100;
+      const renderDailyReport = records => {
+        const byDate = new Map();
+        records.forEach(item => {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date || "")) return;
+          const entry = byDate.get(item.date) || { date: item.date, calls: 0, totalMinutes: 0 };
+          entry.calls += 1;
+          entry.totalMinutes += Number(item.callMinutes) || 0;
+          byDate.set(item.date, entry);
+        });
+        dailyReport = [...byDate.values()]
+          .map(entry => ({ ...entry, totalMinutes: roundMinutes(entry.totalMinutes) }))
+          .sort((a, b) => b.date.localeCompare(a.date));
+        dailyReportRows.replaceChildren();
+        dailyReport.forEach(entry => {
+          const row = dailyReportRows.insertRow();
+          row.insertCell().textContent = entry.date;
+          row.insertCell().textContent = entry.calls.toLocaleString();
+          row.insertCell().textContent = entry.totalMinutes.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        });
+        const calls = dailyReport.reduce((sum, entry) => sum + entry.calls, 0);
+        const minutes = roundMinutes(dailyReport.reduce((sum, entry) => sum + entry.totalMinutes, 0));
+        dailyReportCallTotal.textContent = calls.toLocaleString();
+        dailyReportMinuteTotal.textContent = minutes.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        dailyReportTotal.hidden = dailyReport.length === 0;
+        dailyReportEmpty.hidden = dailyReport.length > 0;
+        downloadReportButton.disabled = dailyReport.length === 0;
+      };
       const renderSaved = records => {
         savedRows.replaceChildren();
         const minutes = records.reduce((sum, item) => sum + (Number(item.callMinutes) || 0), 0);
@@ -671,6 +724,7 @@
         document.getElementById("summary-count").textContent = records.length.toLocaleString();
         document.getElementById("summary-minutes").textContent = (Math.round(minutes * 100) / 100).toLocaleString();
         document.getElementById("summary-people").textContent = people.size.toLocaleString();
+        renderDailyReport(records);
         savedEmpty.hidden = records.length > 0;
         records.slice(0, 50).forEach(item => {
           const row = savedRows.insertRow();
@@ -744,6 +798,54 @@
           setStatus(`Could not save calls: ${error.message}`, true);
         } finally {
           updateEditState();
+        }
+      };
+      const loadXlsx = () => {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (!xlsxPromise) {
+          xlsxPromise = new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+            script.onload = () => {
+              if (window.XLSX) resolve(window.XLSX);
+              else {
+                xlsxPromise = null;
+                reject(new Error("The Excel export library did not load."));
+              }
+            };
+            script.onerror = () => {
+              xlsxPromise = null;
+              reject(new Error("Could not load the Excel export library. Check your internet connection and retry."));
+            };
+            document.head.append(script);
+          });
+        }
+        return xlsxPromise;
+      };
+      const downloadDailyReport = async () => {
+        if (!dailyReport.length) return;
+        downloadReportButton.disabled = true;
+        setStatus("Preparing the day-wise Excel report…");
+        try {
+          const XLSX = await loadXlsx();
+          const totalCalls = dailyReport.reduce((sum, entry) => sum + entry.calls, 0);
+          const totalMinutes = roundMinutes(dailyReport.reduce((sum, entry) => sum + entry.totalMinutes, 0));
+          const rows = [
+            ["Date", "Calls", "Total minutes"],
+            ...dailyReport.map(entry => [entry.date, entry.calls, entry.totalMinutes]),
+            ["TOTAL", totalCalls, totalMinutes]
+          ];
+          const worksheet = XLSX.utils.aoa_to_sheet(rows);
+          worksheet["!cols"] = [{ wch: 16 }, { wch: 12 }, { wch: 18 }];
+          worksheet["!autofilter"] = { ref: `A1:C${dailyReport.length + 1}` };
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, worksheet, "Daily Report");
+          XLSX.writeFile(workbook, `call-log-daily-report-${localDate()}.xlsx`);
+          setStatus("Excel report downloaded.");
+        } catch (error) {
+          setStatus(error.message || "Could not create the Excel report.", true);
+        } finally {
+          downloadReportButton.disabled = dailyReport.length === 0;
         }
       };
 
@@ -822,6 +924,7 @@
           setStatus(`Could not refresh the dashboard: ${error.message}`, true);
         }
       });
+      downloadReportButton.addEventListener("click", downloadDailyReport);
 
       connectionLabel.textContent = "Connecting to Google Sheet…";
       refreshSaved().catch(error => {
