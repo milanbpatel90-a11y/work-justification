@@ -1,14 +1,30 @@
-const ALLOWED_METHODS = new Set(["getWorkLogs", "saveCallLogs"]);
+const ALLOWED_METHODS = new Set(["getWorkLogs", "saveCallLogs", "getActivityTotals", "saveActivityTotals"]);
+const ACTIVITY_EXTENSION_ORIGIN = "chrome-extension://onikhhamabfliiacphlpdeippigikmmj";
 
 export default async function handler(request, response) {
+  const origin = request.headers.origin;
+  const allowedOrigin = origin === process.env.FRONTEND_ORIGIN || origin === ACTIVITY_EXTENSION_ORIGIN;
+  if (request.method === "OPTIONS") {
+    if (!allowedOrigin) return response.status(403).end();
+    response.setHeader("Access-Control-Allow-Origin", origin);
+    response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    response.setHeader("Access-Control-Max-Age", "600");
+    response.setHeader("Vary", "Origin");
+    return response.status(204).end();
+  }
   if (request.method !== "POST") {
     response.setHeader("Allow", "POST");
     return response.status(405).json({ ok: false, error: "Method not allowed." });
   }
 
   const frontendOrigin = process.env.FRONTEND_ORIGIN;
-  if (!frontendOrigin || request.headers.origin !== frontendOrigin) {
+  if (!frontendOrigin || (origin !== frontendOrigin && origin !== ACTIVITY_EXTENSION_ORIGIN)) {
     return response.status(403).json({ ok: false, error: "Request origin is not allowed." });
+  }
+  if (origin === ACTIVITY_EXTENSION_ORIGIN) {
+    response.setHeader("Access-Control-Allow-Origin", origin);
+    response.setHeader("Vary", "Origin");
   }
 
   const scriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL;
@@ -26,7 +42,7 @@ export default async function handler(request, response) {
   if (
     endpoint.protocol !== "https:" ||
     endpoint.hostname !== "script.google.com" ||
-    !/^\/macros\/s\/[^/]+\/exec$/.test(endpoint.pathname)
+    !/^\/(?:a\/)?macros\/(?:[^/]+\/)?s\/[^/]+\/exec$/.test(endpoint.pathname)
   ) {
     return response.status(500).json({ ok: false, error: "Use the deployed Google Apps Script /exec URL." });
   }
@@ -36,7 +52,9 @@ export default async function handler(request, response) {
     return response.status(400).json({ ok: false, error: "Invalid Sheets API request." });
   }
   if ((method === "getWorkLogs" && args.length !== 0) ||
-      (method === "saveCallLogs" && (args.length !== 1 || !Array.isArray(args[0])))) {
+      (method === "saveCallLogs" && (args.length !== 1 || !Array.isArray(args[0]))) ||
+      (method === "getActivityTotals" && args.length !== 0) ||
+      (method === "saveActivityTotals" && (args.length !== 1 || !Array.isArray(args[0])))) {
     return response.status(400).json({ ok: false, error: "Invalid arguments for Sheets API request." });
   }
 
@@ -47,6 +65,12 @@ export default async function handler(request, response) {
       body: JSON.stringify({ action: method, args, apiKey }),
       signal: AbortSignal.timeout(15000)
     });
+    if (upstream.redirected && /\/ServiceLogin\/?$/.test(new URL(upstream.url).pathname)) {
+      return response.status(502).json({
+        ok: false,
+        error: "Google Apps Script requires sign-in. Redeploy it as a web app with access set to Anyone."
+      });
+    }
     const result = await upstream.json();
     if (!upstream.ok || !result.ok) {
       return response.status(502).json({
@@ -63,3 +87,4 @@ export default async function handler(request, response) {
     });
   }
 }
+
