@@ -352,7 +352,9 @@
         }
         try {
           const sourcePixels = bitmap.width * bitmap.height;
-          const scale = Math.min(1, Math.sqrt(MAX_OCR_PIXELS / sourcePixels));
+          // Enlarge small phone screenshots so OCR can distinguish compact
+          // durations such as “1m 1s”; still cap the canvas at four megapixels.
+          const scale = Math.min(2, Math.sqrt(MAX_OCR_PIXELS / sourcePixels));
           const width = Math.max(1, Math.round(bitmap.width * scale));
           const height = Math.max(1, Math.round(bitmap.height * scale));
           if (scale === 1) return file;
@@ -366,7 +368,7 @@
             canvas.toBlob(blob => {
               if (blob) resolve(blob);
               else reject(new Error("Your browser could not resize the screenshot for OCR."));
-            }, "image/jpeg", 0.92);
+            }, "image/png");
           });
         } finally {
           bitmap.close();
