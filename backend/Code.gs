@@ -13,7 +13,7 @@ const LEGACY_WORK_LOG_HEADERS = ["Date", "Calls (contact number)", "Call minutes
 const SPREADSHEET_ID_PROPERTY = "WORK_LOG_SPREADSHEET_ID";
 const API_KEY_PROPERTY = "WORK_LOG_API_KEY";
 const ACTIVITY_LOG_HEADERS = ["Date", "Application", "Active time (minutes)", "Active time (seconds)", "Last updated"];
-const ACTIVITY_CATEGORIES = ["Gmail", "Google Sheets", "Tool", "Zoho", "WhatsApp"];
+const ACTIVITY_CATEGORIES = ["Gmail", "Google Sheets", "Tool", "Zoho", "WhatsApp", "WhatsApp Desktop"];
 
 function setupWorkLogSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
