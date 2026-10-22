@@ -405,6 +405,20 @@
           };
         })
         .filter(Boolean);
+      const getSpatiallyOrderedOcrText = data => {
+        const lines = Array.isArray(data?.lines) ? data.lines.filter(line => line?.text?.trim()) : [];
+        if (!lines.length) return data?.text || "";
+        return lines
+          .map((line, index) => ({
+            text: line.text.trim(),
+            y: Number(line.bbox?.y0 ?? line.baseline?.y0 ?? index),
+            x: Number(line.bbox?.x0 ?? 0),
+            index
+          }))
+          .sort((a, b) => a.y - b.y || a.x - b.x || a.index - b.index)
+          .map(line => line.text)
+          .join("\n");
+      };
       const durationSeconds = (text, callTime = "") => {
         const labelled = text.match(/\b(?:duration|call time|length)\s*[:=-]?\s*(\d{1,3}):(\d{2})(?::(\d{2}))?\b/i);
         if (labelled) return labelled[3] ? +labelled[1] * 3600 + +labelled[2] * 60 + +labelled[3] : +labelled[1] * 60 + +labelled[2];
@@ -573,7 +587,10 @@
               if (message.status === "recognizing text") progress.textContent = `Reading screenshot… ${Math.round((message.progress || 0) * 100)}%`;
             }
           });
-          const calls = parseCalls(recognized.data.text || "", localDate());
+          // Tesseract's flattened text can read phone-log rows out of visual order.
+          // Preserve the screenshot's top-to-bottom order so each duration stays
+          // with the timestamp above it (e.g. “11 min 52 s” remains one call).
+          const calls = parseCalls(getSpatiallyOrderedOcrText(recognized.data), localDate());
           if (!calls.length) throw new Error("No call entries were recognized. Try a clearer screenshot or add calls manually.");
           editRows.replaceChildren();
           calls.forEach(call => addCallRow(call));
