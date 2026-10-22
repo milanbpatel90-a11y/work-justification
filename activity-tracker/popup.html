@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Work activity</title>
+  <style>
+    body { width: 310px; margin: 0; padding: 16px; color: #172536; background: #f4f7fb; font: 13px/1.45 "Segoe UI", Arial, sans-serif; }
+    h1 { margin: 0 0 4px; font-size: 17px; }
+    p { margin: 0 0 12px; color: #68788a; }
+    .card { padding: 12px; border: 1px solid #e3eaf2; border-radius: 10px; background: #fff; }
+    .row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #edf1f5; }
+    .row:last-child { border-bottom: 0; }
+    .total { margin-top: 7px; padding-top: 9px; border-top: 1px solid #e3eaf2; font-weight: 700; }
+    .actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; }
+    button { border: 1px solid #d5dfeb; border-radius: 8px; padding: 8px 10px; background: #fff; color: #263b55; cursor: pointer; font-weight: 600; }
+    .state { display: flex; align-items: center; gap: 6px; }
+    .state input { margin: 0; }
+    #message { min-height: 18px; margin: 9px 0 0; font-size: 11px; }
+    .error { color: #b42318; }
+  </style>
+</head>
+<body>
+  <h1>Work activity</h1>
+  <p id="date-label"></p>
+  <section class="card" aria-label="Today's active time by app">
+    <div id="rows"></div>
+    <div class="row total"><span>Total tracked</span><span id="total">0 min</span></div>
+  </section>
+  <div class="actions">
+    <label class="state"><input id="enabled" type="checkbox"> Tracking on</label>
+    <button id="sync" type="button">Sync now</button>
+  </div>
+  <p id="message" role="status" aria-live="polite">Time syncs to the Activity Log tab automatically.</p>
+  <script src="popup.js"></script>
+</body>
+</html>
+
