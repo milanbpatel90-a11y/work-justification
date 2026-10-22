@@ -581,7 +581,11 @@
         button.disabled = true;
         progress.classList.remove("error");
         progress.textContent = "Starting browser OCR…";
-                 const worker = await tesseract.createWorker("eng", 1, {
+        try {
+          const tesseract = await loadTesseract();
+          progress.textContent = "Preparing screenshot for browser OCR…";
+          const ocrImage = await prepareOcrImage(file);
+          const worker = await tesseract.createWorker("eng", 1, {
             logger: message => {
               if (message.status === "recognizing text") progress.textContent = `Reading screenshot… ${Math.round((message.progress || 0) * 100)}%`;
             }
