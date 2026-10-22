@@ -51,7 +51,8 @@
     h2 { margin: 0; color: var(--navy); font-size: 17px; letter-spacing: -.02em; }
     .subheading { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: start; gap: 18px; }
-    .upload-box { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; min-height: 155px; padding: 20px; border: 1px dashed #b7c8dc; border-radius: 13px; background: #f8fbff; }
+    .upload-box { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; min-height: 155px; padding: 20px; border: 1px dashed #b7c8dc; border-radius: 13px; background: #f8fbff; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+    .upload-box.drag-over { border-color: var(--blue); background: var(--blue-soft); box-shadow: inset 0 0 0 2px rgba(57, 120, 232, .12); }
     .upload-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 11px; border-radius: 12px; background: var(--blue-soft); color: var(--blue); font-size: 21px; }
     .upload-title { color: #20354f; font-weight: 700; }
     .upload-hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
@@ -152,7 +153,7 @@
             <div>
               <div class="upload-icon" aria-hidden="true">⇧</div>
               <div class="upload-title">Choose a screenshot to get started</div>
-              <div class="upload-hint">Use a clear PNG, JPG, or WEBP image of your call history. Maximum file size: 20 MB.</div>
+              <div class="upload-hint">Use a clear PNG, JPG, or WEBP image of your call history (max 20 MB), or drag it into this box.</div>
               <input class="file-input" id="screenshot" type="file" accept="image/*" aria-label="Upload call-log screenshot, up to 20 MB">
             </div>
             <img class="preview" id="preview" alt="Preview of the selected call log screenshot">
@@ -210,6 +211,7 @@
   <script>
     (() => {
       const dateInput = document.getElementById("screenshot");
+      const uploadBox = document.querySelector(".upload-box");
       const preview = document.getElementById("preview");
       const editRows = document.getElementById("edit-rows");
       const editEmpty = document.getElementById("edit-empty");
@@ -745,15 +747,65 @@
         }
       };
 
-      dateInput.addEventListener("change", () => {
+      const showSelectedScreenshot = () => {
         const file = dateInput.files[0];
+        progress.classList.remove("error");
+        if (file && !file.type.startsWith("image/")) {
+          dateInput.value = "";
+          progress.textContent = "Choose an image file such as PNG, JPG, or WEBP.";
+          progress.classList.add("error");
+          return;
+        }
+        if (file && file.size > MAX_UPLOAD_BYTES) {
+          dateInput.value = "";
+          progress.textContent = "This screenshot is larger than 20 MB. Choose a smaller image.";
+          progress.classList.add("error");
+          return;
+        }
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = file ? URL.createObjectURL(file) : "";
         preview.src = previewUrl;
         preview.classList.toggle("visible", Boolean(file));
         progress.textContent = "";
-        progress.classList.remove("error");
+      };
+      const hasDraggedFiles = event => Array.from(event.dataTransfer?.types || []).includes("Files");
+      window.addEventListener("dragover", event => {
+        if (hasDraggedFiles(event)) event.preventDefault();
       });
+      window.addEventListener("drop", event => {
+        if (hasDraggedFiles(event)) event.preventDefault();
+      });
+      uploadBox.addEventListener("dragenter", event => {
+        if (hasDraggedFiles(event)) {
+          event.preventDefault();
+          uploadBox.classList.add("drag-over");
+        }
+      });
+      uploadBox.addEventListener("dragover", event => {
+        if (hasDraggedFiles(event)) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+          uploadBox.classList.add("drag-over");
+        }
+      });
+      uploadBox.addEventListener("dragleave", event => {
+        if (!event.relatedTarget || !uploadBox.contains(event.relatedTarget)) uploadBox.classList.remove("drag-over");
+      });
+      uploadBox.addEventListener("drop", event => {
+        event.preventDefault();
+        uploadBox.classList.remove("drag-over");
+        const file = Array.from(event.dataTransfer?.files || []).find(item => item.type.startsWith("image/"));
+        if (!file) {
+          progress.textContent = "Drop an image file such as PNG, JPG, or WEBP.";
+          progress.classList.add("error");
+          return;
+        }
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        dateInput.files = transfer.files;
+        dateInput.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      dateInput.addEventListener("change", showSelectedScreenshot);
       document.getElementById("read-button").addEventListener("click", readScreenshot);
       document.getElementById("add-row").addEventListener("click", () => addCallRow());
       document.getElementById("clear-button").addEventListener("click", () => {
