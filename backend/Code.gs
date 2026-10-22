@@ -12,6 +12,8 @@ const WORK_LOG_HEADERS = [
 const LEGACY_WORK_LOG_HEADERS = ["Date", "Calls (contact number)", "Call minutes", "Person name"];
 const SPREADSHEET_ID_PROPERTY = "WORK_LOG_SPREADSHEET_ID";
 const API_KEY_PROPERTY = "WORK_LOG_API_KEY";
+const ACTIVITY_LOG_HEADERS = ["Date", "Application", "Active time (minutes)", "Active time (seconds)", "Last updated"];
+const ACTIVITY_CATEGORIES = ["Gmail", "Google Sheets", "Tool", "Zoho", "WhatsApp"];
 
 function setupWorkLogSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -76,6 +78,11 @@ function doPost(event) {
     } else if (request.action === "saveCallLogs") {
       const args = Array.isArray(request.args) ? request.args : [];
       data = saveCallLogs(args[0]);
+    } else if (request.action === "getActivityTotals") {
+      data = getActivityTotals();
+    } else if (request.action === "saveActivityTotals") {
+      const args = Array.isArray(request.args) ? request.args : [];
+      data = saveActivityTotals(args[0]);
     } else {
       throw new Error("Unsupported API action.");
     }
@@ -83,6 +90,84 @@ function doPost(event) {
   } catch (error) {
     return jsonResponse_({ ok: false, error: error.message || String(error) });
   }
+}
+
+function getActivityTotals() {
+  const sheet = getActivityLogSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, ACTIVITY_LOG_HEADERS.length).getDisplayValues()
+    .map((row, index) => ({
+      rowIndex: index + 2,
+      date: String(row[0] || ""),
+      application: String(row[1] || ""),
+      activeMinutes: Number(row[2]) || 0,
+      activeSeconds: Number(row[3]) || 0,
+      lastUpdated: String(row[4] || "")
+    }))
+    .filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && ACTIVITY_CATEGORIES.includes(row.application))
+    .sort((a, b) => b.date.localeCompare(a.date) || a.application.localeCompare(b.application));
+}
+
+function saveActivityTotals(entries) {
+  if (!Array.isArray(entries) || entries.length < 1 || entries.length > 100) {
+    throw new Error("Provide between 1 and 100 daily activity totals.");
+  }
+  const rows = entries.map((entry, index) => {
+    if (!entry || typeof entry !== "object") throw new Error(`Activity total ${index + 1} is invalid.`);
+    const date = validateDate_(entry.date);
+    const application = String(entry.application || "");
+    if (!ACTIVITY_CATEGORIES.includes(application)) throw new Error(`Activity total ${index + 1} has an unsupported application.`);
+    const activeSeconds = Number(entry.activeSeconds);
+    if (!Number.isSafeInteger(activeSeconds) || activeSeconds < 0 || activeSeconds > 86400) {
+      throw new Error(`Activity total ${index + 1} must contain 0 to 86,400 whole active seconds.`);
+    }
+    return { date, application, activeSeconds };
+  });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getActivityLogSheet_();
+    const lastRow = sheet.getLastRow();
+    const existing = lastRow < 2 ? [] : sheet.getRange(2, 1, lastRow - 1, 2).getDisplayValues();
+    const rowByKey = new Map(existing.map((row, index) => [`${row[0]}|${row[1]}`, index + 2]));
+    const now = new Date().toISOString();
+    rows.forEach(entry => {
+      const rowIndex = rowByKey.get(`${entry.date}|${entry.application}`) || sheet.getLastRow() + 1;
+      rowByKey.set(`${entry.date}|${entry.application}`, rowIndex);
+      sheet.getRange(rowIndex, 1, 1, 2).setNumberFormat("@");
+      sheet.getRange(rowIndex, 1, 1, ACTIVITY_LOG_HEADERS.length).setValues([[
+        entry.date,
+        entry.application,
+        Math.round(entry.activeSeconds / 60 * 100) / 100,
+        entry.activeSeconds,
+        now
+      ]]);
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  return getActivityTotals();
+}
+
+function getActivityLogSheet_() {
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty(SPREADSHEET_ID_PROPERTY);
+  if (!spreadsheetId) throw new Error("Work-log sheet is not configured. Run setupWorkLogSheet first.");
+  const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  let sheet = spreadsheet.getSheetByName("Activity Log");
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet("Activity Log");
+    sheet.getRange(1, 1, 1, ACTIVITY_LOG_HEADERS.length).setValues([ACTIVITY_LOG_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, ACTIVITY_LOG_HEADERS.length).setFontWeight("bold");
+    [120, 150, 170, 170, 220].forEach((width, index) => sheet.setColumnWidth(index + 1, width));
+  }
+  const headers = sheet.getRange(1, 1, 1, ACTIVITY_LOG_HEADERS.length).getDisplayValues()[0];
+  if (ACTIVITY_LOG_HEADERS.some((header, index) => headers[index] !== header)) {
+    throw new Error('The "Activity Log" tab has an unexpected layout. Rename or repair its header row before syncing.');
+  }
+  return sheet;
 }
 
 function jsonResponse_(value) {
@@ -212,3 +297,4 @@ function formatDate_(value, timezone) {
   }
   return String(value || "").trim();
 }
+
