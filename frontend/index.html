@@ -453,6 +453,18 @@
         const remainder = total % 60;
         return remainder ? `${formatted}:${String(remainder).padStart(2, "0")}` : formatted;
       };
+      const removeIncompleteDuplicateCalls = calls => calls.filter(call => {
+        if (call.callTime || call.startTime || call.endTime) return true;
+        const phone = String(call.contact || "").replace(/\D/g, "");
+        if (!phone || call.callMinutes === "") return true;
+        return !calls.some(other =>
+          other !== call &&
+          other.date === call.date &&
+          String(other.contact || "").replace(/\D/g, "") === phone &&
+          other.callTime && other.startTime && other.endTime &&
+          Number(other.callMinutes) === Number(call.callMinutes)
+        );
+      });
       const parseCalls = (text, fallbackDate) => {
         const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
         const dates = lines.map(line => parseDate(line, fallbackDate));
@@ -468,7 +480,7 @@
           if (anchors.length) {
             const headerPhone = lines.slice(0, callLogsHeading).map(getPhone).find(Boolean) ||
               lines.slice(callLogsHeading + 1).map(getPhone).find(Boolean) || "";
-            return anchors.map((lineIndex, anchorIndex) => {
+            const calls = anchors.map((lineIndex, anchorIndex) => {
               const endIndex = anchors[anchorIndex + 1] ?? lines.length;
               const context = lines.slice(lineIndex, endIndex).join(" ");
               const callTime = extractClockTimes(lines[lineIndex])[0]?.value || "";
@@ -494,6 +506,7 @@
                 endTime
               };
             });
+            return removeIncompleteDuplicateCalls(calls);
           }
         }
         const result = [];
@@ -522,6 +535,9 @@
           const clear24HourTime = clocks.find(clock => Number(clock.value.slice(0, 2)) > 12);
           const callTime = parsedStart || amPmTime?.value || clear24HourTime?.value ||
             ((phone || typeLine) ? clocks[0]?.value || "" : "");
+          // A contact header can contain a number and country name but is not a
+          // call record. Require an actual call time in this non-history layout.
+          if (!callTime && !parsedStart && !parsedEnd) return;
           const clockPairsAreEndpoints = clocks.length > 1 &&
             (clocks.every(clock => /\b(?:AM|PM)\b/i.test(clock.raw)) ||
               Boolean(startLabel && endLabel) ||
@@ -562,7 +578,7 @@
           const key = [call.date, call.callTime, call.contact, call.callMinutes, call.personName, call.startTime, call.endTime].join("|");
           if (!seen.has(key)) { seen.add(key); unique.push(call); }
         });
-        return unique;
+        return removeIncompleteDuplicateCalls(unique);
       };
       const readScreenshot = async () => {
         const file = dateInput.files[0];
