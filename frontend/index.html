@@ -222,6 +222,20 @@
         <div class="report-empty" id="daily-report-empty">No saved call data to report yet.</div>
       </div>
     </section>
+    <section class="panel saved-panel" aria-labelledby="activity-heading">
+      <div class="panel-heading">
+        <div><h2 id="activity-heading">Work app activity</h2><p class="subheading">Daily active time in Gmail, Google Sheets, Tool, Zoho, and WhatsApp Web.</p></div>
+        <button class="secondary" id="refresh-activity-button" type="button">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table class="saved-table">
+          <thead><tr><th>Date</th><th>Application</th><th>Active minutes</th></tr></thead>
+          <tbody id="activity-rows"></tbody>
+        </table>
+        <div class="saved-empty" id="activity-empty">No app activity has synced yet. Install and enable the Work Justification Activity Timer extension.</div>
+      </div>
+      <p class="status-message" id="activity-status" role="status" aria-live="polite"></p>
+    </section>
     <footer>Email review is intentionally left blank. Call rows are saved with date, ISO week, month, time, phone number, name, duration, start time, and end time.</footer>
   </main>
 
@@ -240,6 +254,9 @@
       const dailyReportCallTotal = document.getElementById("daily-report-call-total");
       const dailyReportMinuteTotal = document.getElementById("daily-report-minute-total");
       const downloadReportButton = document.getElementById("download-report-button");
+      const activityRows = document.getElementById("activity-rows");
+      const activityEmpty = document.getElementById("activity-empty");
+      const activityStatus = document.getElementById("activity-status");
       const progress = document.getElementById("progress");
       const status = document.getElementById("status");
       const saveButton = document.getElementById("save-button");
@@ -760,6 +777,29 @@
         }
         updateEditState();
       };
+      const refreshActivity = async () => {
+        const button = document.getElementById("refresh-activity-button");
+        button.disabled = true;
+        try {
+          const records = await callServer("getActivityTotals");
+          activityRows.replaceChildren();
+          records.slice(0, 300).forEach(item => {
+            const row = activityRows.insertRow();
+            [item.date, item.application, Number(item.activeMinutes || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })]
+              .forEach(value => { row.insertCell().textContent = value; });
+          });
+          activityEmpty.hidden = records.length > 0;
+          activityStatus.textContent = records.length ? "Activity totals are synced from the Activity Log sheet tab." : "The tracker is connected. No activity totals have been recorded yet.";
+          activityStatus.classList.remove("error");
+        } catch (error) {
+          activityRows.replaceChildren();
+          activityEmpty.hidden = false;
+          activityStatus.textContent = `Could not load app activity: ${error.message}`;
+          activityStatus.classList.add("error");
+        } finally {
+          button.disabled = false;
+        }
+      };
       const saveCalls = async () => {
         const entries = [...editRows.rows].map(row => {
           const inputs = row.querySelectorAll("input");
@@ -941,6 +981,7 @@
           setStatus(`Could not refresh the dashboard: ${error.message}`, true);
         }
       });
+      document.getElementById("refresh-activity-button").addEventListener("click", refreshActivity);
       downloadReportButton.addEventListener("click", downloadDailyReport);
 
       connectionLabel.textContent = "Connecting to Google Sheet…";
@@ -949,6 +990,7 @@
         connectionLabel.textContent = "Google Sheet not connected";
         setStatus(`Could not load the connected sheet: ${error.message}`, true);
       });
+      refreshActivity();
       updateEditState();
     })();
   </script>
