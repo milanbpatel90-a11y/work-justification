@@ -144,7 +144,7 @@
 
     <section class="panel" aria-labelledby="upload-heading">
       <div class="panel-heading">
-        <div><p class="eyebrow">Upload &amp; review</p><h2 id="upload-heading">Read a call-log screenshot</h2><p class="subheading">Text is recognized in your browser and automatically saved to the connected sheet.</p></div>
+        <div><p class="eyebrow">Upload &amp; review</p><h2 id="upload-heading">Read a call-log screenshot</h2><p class="subheading">Review recognized calls and correct any OCR mistakes before saving them to the connected sheet.</p></div>
       </div>
       <div class="layout">
         <div>
@@ -165,7 +165,7 @@
           <ol class="steps">
             <li class="step"><span class="step-number">1</span><span><strong>Upload screenshot</strong>Select one call log image.</span></li>
             <li class="step"><span class="step-number">2</span><span><strong>Review details</strong>Correct the date, time, phone, name, duration, start, or end time.</span></li>
-            <li class="step"><span class="step-number">3</span><span><strong>Saved automatically</strong>Each call is written as its own sheet row after reading.</span></li>
+            <li class="step"><span class="step-number">3</span><span><strong>Confirm and save</strong>Review durations and other details, then save the calls to the sheet.</span></li>
           </ol>
         </aside>
       </div>
@@ -185,7 +185,7 @@
       </div>
       <div class="actions">
         <div class="action-left"><button class="primary" id="read-button" type="button">Read screenshot</button><button class="secondary" id="clear-button" type="button">Clear calls</button></div>
-        <span class="save-note">New screenshot results save automatically; use this button for edits and manually added calls.</span>
+        <span class="save-note">Review OCR results first. Save writes the reviewed rows to Google Sheets.</span>
         <button class="primary" id="save-button" type="button" disabled>Save changes to sheet</button>
       </div>
       <p class="status-message" id="status" role="status" aria-live="polite"></p>
@@ -596,36 +596,29 @@
           } finally {
             await worker.terminate();
           }
-          // Tesseract's flattened text can read phone-log rows out of visual order.
-          // Preserve the screenshot's top-to-bottom order so each duration stays
-          // with the timestamp above it (e.g. “11 min 52 s” remains one call).
-          const calls = parseCalls(getSpatiallyOrderedOcrText(recognized.data), localDate());
+          // Parse both Tesseract's layout-preserving lines and its original text.
+          // On compact phone logs one pass can drop a duration component (for
+          // example “11 min” or “52 s”); keep the more complete duration for the
+          // matching timestamp instead of accepting the partial result.
+          const spatialCalls = parseCalls(getSpatiallyOrderedOcrText(recognized.data), localDate());
+          const textCalls = parseCalls(recognized.data.text || "", localDate());
+          const calls = spatialCalls.map((call, index) => {
+            const alternative = textCalls.find(candidate => candidate.callTime === call.callTime) || textCalls[index];
+            const currentMinutes = Number(call.callMinutes);
+            const alternativeMinutes = Number(alternative?.callMinutes);
+            if (Number.isFinite(alternativeMinutes) && alternativeMinutes > currentMinutes && alternativeMinutes <= 1440) {
+              const seconds = Math.round(alternativeMinutes * 60);
+              return { ...call, callMinutes: Math.round(alternativeMinutes * 100) / 100, endTime: addSecondsToTime(call.startTime, seconds) };
+            }
+            return call;
+          });
           if (!calls.length) throw new Error("No call entries were recognized. Try a clearer screenshot or add calls manually.");
           editRows.replaceChildren();
           calls.forEach(call => addCallRow(call));
-          if (sheetConnected) {
-            progress.textContent = `Found ${calls.length} possible call${calls.length === 1 ? "" : "s"}. Saving automatically…`;
-            try {
-              const saved = await callServer("saveCallLogs", calls);
-              editRows.replaceChildren();
-              saved.forEach(addCallRow);
-              lastSavedScreenshot = fingerprint;
-              progress.textContent = `Read and automatically saved ${saved.length} call${saved.length === 1 ? "" : "s"}. Review the rows and save changes if needed.`;
-              setStatus("Screenshot call details were saved to the connected Google Sheet.");
-              try {
-                await refreshSaved();
-              } catch (error) {
-                setStatus(`Calls were saved, but the dashboard could not refresh: ${error.message}`, true);
-              }
-            } catch (error) {
-              progress.textContent = `OCR found ${calls.length} calls, but automatic saving failed. Check the rows and select Save changes to sheet to retry.`;
-              progress.classList.add("error");
-              setStatus(`Could not automatically save calls: ${error.message}`, true);
-            }
-          } else {
-            progress.textContent = `Found ${calls.length} possible calls. Check the Google Sheets connection, then save the rows to retry.`;
-            setStatus("This page could not connect to Google Sheets. Check the deployment configuration.", true);
-          }
+          progress.textContent = `Found ${calls.length} possible calls. Review each duration and correct anything that does not match the screenshot, then select Save changes to sheet.`;
+          setStatus(sheetConnected
+            ? "Calls are ready for review and have not been saved yet."
+            : "Calls are ready for review. Reconnect to Google Sheets before saving.", !sheetConnected);
         } catch (error) {
           progress.textContent = error.message || String(error);
           progress.classList.add("error");
@@ -769,3 +762,4 @@
   </script>
 </body>
 </html>
+
