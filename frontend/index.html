@@ -52,7 +52,7 @@
     .subheading { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: start; gap: 18px; }
     .upload-box { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; min-height: 155px; padding: 20px; border: 1px dashed #b7c8dc; border-radius: 13px; background: #f8fbff; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
-    .upload-box.drag-over { border-color: var(--blue); background: var(--blue-soft); box-shadow: inset 0 0 0 2px rgba(57, 120, 232, .12); }
+    .upload-box.drag-over, .upload-box:focus-visible { border-color: var(--blue); background: var(--blue-soft); box-shadow: inset 0 0 0 2px rgba(57, 120, 232, .12); outline: none; }
     .upload-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 11px; border-radius: 12px; background: var(--blue-soft); color: var(--blue); font-size: 21px; }
     .upload-title { color: #20354f; font-weight: 700; }
     .upload-hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
@@ -152,11 +152,11 @@
       </div>
       <div class="layout">
         <div>
-          <div class="upload-box">
+          <div class="upload-box" tabindex="0" aria-label="Screenshot upload area. Drag an image here or click this area and press Control plus V to paste a screenshot.">
             <div>
               <div class="upload-icon" aria-hidden="true">⇧</div>
               <div class="upload-title">Choose a screenshot to get started</div>
-              <div class="upload-hint">Use a clear PNG, JPG, or WEBP image of your call history (max 20 MB), or drag it into this box.</div>
+              <div class="upload-hint">Choose or drag a clear PNG, JPG, or WEBP image here (max 20 MB), or click this box and press Ctrl+V to paste a screenshot.</div>
               <input class="file-input" id="screenshot" type="file" accept="image/*" aria-label="Upload call-log screenshot, up to 20 MB">
             </div>
             <img class="preview" id="preview" alt="Preview of the selected call log screenshot">
@@ -871,6 +871,21 @@
         progress.textContent = "";
       };
       const hasDraggedFiles = event => Array.from(event.dataTransfer?.types || []).includes("Files");
+      uploadBox.addEventListener("paste", event => {
+        const items = Array.from(event.clipboardData?.items || []);
+        const image = items.find(item => item.kind === "file" && item.type.startsWith("image/"))?.getAsFile();
+        if (!image) {
+          progress.textContent = "No screenshot image found in the clipboard. Copy the screenshot, click this box, and press Ctrl+V.";
+          progress.classList.add("error");
+          return;
+        }
+        event.preventDefault();
+        const transfer = new DataTransfer();
+        transfer.items.add(image);
+        dateInput.files = transfer.files;
+        dateInput.dispatchEvent(new Event("change", { bubbles: true }));
+        progress.textContent = "Screenshot pasted. Select Read screenshot when you are ready to review the call details.";
+      });
       window.addEventListener("dragover", event => {
         if (hasDraggedFiles(event)) event.preventDefault();
       });
