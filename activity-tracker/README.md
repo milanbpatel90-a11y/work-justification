@@ -1,6 +1,6 @@
 # Work Justification Activity Timer
 
-This Chrome extension counts foreground time only on the work sites selected for this task. It stores application name, local date, and elapsed seconds. It does not read page text, message contents, email subjects, screenshots, or full URLs.
+This tracker counts foreground time only on the work sites selected for this task. It stores application name, local date, and elapsed seconds. It does not read page text, message contents, email subjects, screenshots, window titles, or full URLs.
 
 Tracked browser pages:
 
