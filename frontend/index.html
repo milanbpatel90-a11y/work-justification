@@ -239,6 +239,7 @@
       let tesseractPromise;
       let previewUrl = "";
       let lastSavedScreenshot = "";
+      let pendingScreenshotFingerprint = "";
       let sheetConnected = false;
 
       const setStatus = (message, isError = false) => {
@@ -613,6 +614,7 @@
             return call;
           });
           if (!calls.length) throw new Error("No call entries were recognized. Try a clearer screenshot or add calls manually.");
+          pendingScreenshotFingerprint = fingerprint;
           editRows.replaceChildren();
           calls.forEach(call => addCallRow(call));
           progress.textContent = `Found ${calls.length} possible calls. Review each duration and correct anything that does not match the screenshot, then select Save changes to sheet.`;
@@ -710,6 +712,8 @@
         setStatus("Saving calls to Google Sheets…");
         try {
           const saved = await callServer("saveCallLogs", entries);
+          if (pendingScreenshotFingerprint) lastSavedScreenshot = pendingScreenshotFingerprint;
+          pendingScreenshotFingerprint = "";
           editRows.replaceChildren();
           saved.forEach(addCallRow);
           setStatus(`Saved changes to ${saved.length} call${saved.length === 1 ? "" : "s"} in the Work Log sheet.`);
